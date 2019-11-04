@@ -1,0 +1,28 @@
+{
+  "name": "d3_voter_map",
+  "version": "1.0.0",
+  "description": "Visualizations for presidential votes based on various population levels",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Zavier Henry",
+  "license": "ISC",
+  "dependencies": {
+    "canvas": "^2.6.0",
+    "cheerio": "^1.0.0-rc.3",
+    "csv-parse": "^4.4.6",
+    "csv-stringify": "^5.3.3",
+    "d3": "^5.12.0",
+    "jsdom": "^15.1.1",
+    "lodash": "^4.17.15",
+    "request": "^2.88.0",
+    "request-promise": "^4.2.4",
+    "shapefile": "^0.6.6",
+    "topojson": "^3.0.2",
+    "topojson-client": "^3.0.1",
+    "topojson-server": "^3.0.1",
+    "topojson-simplify": "^3.0.3",
+    "xlsx": "^0.15.1"
+  }
+}
