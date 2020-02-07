@@ -5,12 +5,7 @@ const stringify = require('csv-stringify')
 const xlsx = require('xlsx');
 const fs = require('fs');
 
-const electionResultsFile = "election_results.csv"
 const regions = `${__dirname}/local_data/regions.csv`
-
-
-//------------------------------------------------------------------------------------------
-//State scrapers for top level and district
 
 
 //------------------------------------------------------------------------------------------
@@ -24,12 +19,16 @@ function loadScraperSite(site) {
             'User-Agent': 'Request-Promise'
         }
     })
+    .catch(err => {
+        throw `An error occurred when fetching a scraper site\n
+            Site: ${site}\n
+            Error: ${err}\n`
+    })
 }
 
 function _findWikipediaTable(site, $) {
     var siteId = '#' + site.split('#')[1].replace(/\//g, '\\/')
     return $(siteId).parent()
-
         .nextAll('table.wikitable')
         .first()
 }
@@ -47,20 +46,6 @@ function getTableRows(table, $) {
         .filter($('td, th', 'table.wikitable').parent())
 }
 
-// function extractWikipediaSingleTable(table, $) {
-//     return table.find('tbody tr')
-//         .filter($('td', 'table.wikitable').parent())
-//         .map(function(_i, row) {
-//             return {
-//                 county: $('td, th', row).first().text().trim().toLowerCase(),
-//                 count: +$('td, th', row)
-//                     .not((_i, element) => $(element).text().match(/^\s*$/))
-//                     .last().text().replace(/,/g, '')
-//             };
-//         }).get()
-// }
-
-
 function extractWikipediaSingleTable(table, $) {
     return table.find('tbody tr')
         .filter($('td', 'table.wikitable').parent())
@@ -73,29 +58,6 @@ function extractWikipediaSingleTable(table, $) {
             return [[county, count]]
         }).get()
 }
-
-//extract table where percentages and totals are split 
-//See https://en.wikipedia.org/wiki/2016_United_States_presidential_election_in_Nebraska#Results_by_county for example
-// function extractWikipediaSplitPercentagesTable(table, $) {
-//     var tableRows = table.find('tbody tr').filter($('td', 'table.wikitable').parent())
-//     var results = new Array(tableRows.length / 2)
-
-//     tableRows.each(function(i, row) {
-//         if (i % 2 == 0) {
-//             var county = $('td, th', row).first().text().trim().toLowerCase()
-//             results[i/2] = { county: county, count: 0 }
-//         } else {
-//             var count = +$('td, th', row)
-//                 .not((_i, element) => $(element).text().match(/^\s*$/))
-//                 .last().text().replace(/[,-]/g, '')
-//             results[(i-1)/2].count = count
-//         }
-//     })
-
-//     return results
-
-// }
-
 
 function extractWikipediaSplitPercentagesTable(table, $) {
     var tableRows = table.find('tbody tr').filter($('td', 'table.wikitable').parent())
@@ -117,33 +79,18 @@ function extractWikipediaSplitPercentagesTable(table, $) {
 
 }
 
-// function defaultExtractDataSingleTable(site) {
-//     return loadScraperSite(site).then(function($) {
-//         var siteId = site.split('#')[1]
-//         var table = findWikipediaTable($, siteId)
-//         return extractWikipediaSingleTable(table, $)
-//     })
-// }
-
 function defaultExtractDataSingleTable(site) {
     return loadScraperSite(site).then(function($) {
-        var siteId = site.split('#')[1]
+        let [_, siteId] = site.split('#')
         var table = findWikipediaTable($, siteId)
         return new Map(extractWikipediaSingleTable(table, $))
     })
 }
 
-// function defaultExtractDataSplitPercentagesTable(site) {
-//     return loadScraperSite(site).then(function($) {
-//         var siteId = site.split('#')[1]
-//         var table = findWikipediaTable($, siteId)
-//         return extractWikipediaSplitPercentagesTable(table, $)
-//     })
-// }
-
 function defaultExtractDataSplitPercentagesTable(site) {
     return loadScraperSite(site).then(function($) {
-        var siteId = site.split('#')[1]
+        let [_, siteId] = site.split('#')
+        //var siteId = site.split('#')[1]
         var table = findWikipediaTable($, siteId)
         return new Map(extractWikipediaSplitPercentagesTable(table, $))
     })
@@ -152,21 +99,16 @@ function defaultExtractDataSplitPercentagesTable(site) {
 function extractWikipediaSite(tableFunction, extractionFunction) {
     return function(site) {
         loadScraperSite(site).then(function($) {
-            var siteId = site.split('#')[1]
+            //var siteId = site.split('#')[1]
+            let [_, siteId] = site.split('#')
             var table = tableFunction($, siteId)
             return extractionFunction(table, $)
         })
     }
 }
 
-// function addTotalAmount(results) {
-//     var total = {county: 'Total', count: results.reduce((total, c) => total + c.count, 0)}
-//     results.push(total)
-//     return results
-// }
-
 function addTotalAmount(results) {
-    return results.set('total', Array.from(results.values()).reduce((total, c) => total + c))
+    return results.set('total', Array.from(results.values()).reduce((total, c) => total + c, 0))
 }
 
 function replaceNames(replacements) {
@@ -232,17 +174,13 @@ function extractAlaskaResults(electionData, electionPrecinctMap) {
 
         let record
         while (record = electionDataParser.read()) {
-            
-            var race = record[1]
-            var candidate = record[2]
-            var party = record[3]
 
-            //TODO: handle absentee and early voting numbers, split district numbers proportionally along counties
-            //TODO: add total number to the end of the list of counties
+            let [precinct, race, candidate, party, _, count] = record
+            count = +count
+
+            //aggregate voting results by district
             if (race == 'US PRESIDENT' && (party != 'NP' || candidate == 'Write-in 60')) {
                 
-                var precinct = record[0]
-                var count = +record[5]
                 let district
 
                 if (district = precinct.match(/(?<d>\d{2}\-\d{3})/)) {
@@ -280,6 +218,8 @@ function extractAlaskaResults(electionData, electionPrecinctMap) {
 
         electionDistrictResults.forEach((breakdown) => {
             var totalEDCount = 0
+
+            //add total election day count
             breakdown.forEach((count, county) => {
                 if (county != nonEDKey) {
                     totalEDCount += count
@@ -446,8 +386,7 @@ var getMinnesotaData = site => defaultExtractDataSingleTable(site)
 var getMississippiData = site => defaultExtractDataSingleTable(site).then(addTotalAmount)
 
 
-//TODO: fill in Missouri site scraper
-//Note: document that Kansas City is added into Jackson County though parts of the city are in Clay, Platte, and Cass County
+//Note: Kansas City is added into Jackson County though parts of the city are in Clay, Platte, and Cass County
 function getMissouriData(site) {
     return defaultExtractDataSingleTable(site).then(addTotalAmount).then(function(results) {
 
@@ -466,6 +405,7 @@ var getNebraskaData = defaultExtractDataSplitPercentagesTable
 var getNevadaData = site => defaultExtractDataSingleTable(site).then(addTotalAmount)
 
 var getNewHampshireData = site => defaultExtractDataSingleTable(site).then(addTotalAmount)
+
 
 function getNewJerseyData(site) {
     return loadScraperSite(site).then(function($) {
@@ -673,108 +613,143 @@ function parseStateSite(state, site) {
     return stateScrapers[state](site)
 }
 
+//
+function getElectionData() {
 
-function saveStateElectionData(resultsFile) {
-
-    if (resultsFile == null || resultsFIle == undefined) {
-        resultsFile = `${__dirname}/local_data/${electionResultsFile}`
-    }
-
-    //if election file exists, read file, parse to JSON, return results
-    //otherwise, scrape results from given websites, scrape county code website, map county to county code, save to election file, and return results
-    
     return new Promise((resolve, reject) => {
-        var filename = `${__dirname}/local_data/regions.csv`
-       
-        var parser = parse({delimiter: ','})
-        var stateScrapers = []
+        let regionFile = `${__dirname}/local_data/regions.csv`
+        let parser = parse({delimiter: ','})
+        let stateScrapers = []
 
-        fs.createReadStream(filename).pipe(parser)
-            .on('data', row => {
-                var stateCode = row[0]
-                var state = row[1]
-                var site = row[2]
-                var stateScraper = parseStateSite(state, site).then(electionResult => {
-                    return {
-                        code: stateCode,
-                        data: electionResult
-                    }
-                })
-
+        fs.createReadStream(regionFile).pipe(parser)
+            .on('data', ([stateCode, state, site]) => {
+                let stateScraper = parseStateSite(state, site).then(electionResult => [stateCode, electionResult])
                 stateScrapers.push(stateScraper)
             })
-            .on('error', e => reject(e))
-            .on('end', () => resolve(Promise.all(stateScrapers).then(function(results) {
-                var electionMap = new Map()
-                results.forEach(({code, data}) => electionMap.set(code, data))
-                electionMap = replaceCountyNamesWithId(electionMap)
-                return saveElectionDataToCSV(electionMap, resultsFile)
-            })))
-        })
+            .on('error', err => reject(err))
+            .on('end', () => resolve(
+                Promise.all(stateScrapers).then(results => {
+                    let electionMap = new Map(results)
+                    return replaceCountyNamesWithId(electionMap)
+                })
+            ))
+    })
 
 }
 
+
+//replaces the county name with its FIPS code (e.g. Cook County Illinois is replaced with its code 17031)
 function replaceCountyNamesWithId(electionData) {
 
-    var workbook = xlsx.readFile(`${__dirname}/local_data/all-geocodes-v2017.xlsx`)
-    var firstSheetName = workbook.SheetNames[0]
-    var worksheet = workbook.Sheets[firstSheetName]
-
-    var countySummaryLevel = '050'
-    var stateSummaryLevel = '040'
-    var firstRow = 6, lastRow = 43915
-    
-
-    for (var i = firstRow; i <= lastRow; i++) {
-        var code = worksheet['A' + i].v
-        var stateCode = worksheet['B' + i].v
-        var countyCode = worksheet['C' + i].v
-
-        if (code == countySummaryLevel && stateCode < '57' && stateCode != '00' && countyCode != '000') {
-            var name = worksheet['G' + i].v.toLowerCase()
-            var countyMap = electionData.get(stateCode)
-            let key
-
-            if (countyMap.has(name)) {
-                countyMap.set(stateCode + countyCode, {name: worksheet['G' + i].v, count: countyMap.get(name)})
-                countyMap.delete(name)
-            } else if (key = Array.from(countyMap.keys()).find(x => name.startsWith(x + ' '))) {
-                countyMap.set(stateCode + countyCode, {name: worksheet['G' + i].v, count: countyMap.get(key)})
-                countyMap.delete(key)
-            }
-        } else if (code == stateSummaryLevel && stateCode < '57' && stateCode != '00') {
-            var name = worksheet['G' + i].v
-            var countyMap = electionData.get(stateCode)
-            countyMap.set(stateCode, {name: name, count: countyMap.get('total')})
-            countyMap.delete('total')
+     //TODO: either save local Excel file or download Excel file from the Internet
+     const requestOptions = {
+         uri: "https://www2.census.gov/programs-surveys/popest/geographies/2017/all-geocodes-v2017.xlsx",
+         encoding: null,
+         transform: xlsx.read,
+         headers: { 'User-Agent': 'Request-Promise' }
         }
-    }
 
-    return electionData
+     return rp(requestOptions).then(workbook => {
+
+        var firstSheetName = workbook.SheetNames[0]
+        var worksheet = workbook.Sheets[firstSheetName]
+    
+        var countySummaryLevel = '050'
+        var stateSummaryLevel = '040'
+        var firstRow = 6, lastRow = 43915
+        
+    
+        for (var i = firstRow; i <= lastRow; i++) {
+            var code = worksheet['A' + i].v
+            var stateCode = worksheet['B' + i].v
+            var countyCode = worksheet['C' + i].v
+    
+            if (code == countySummaryLevel && stateCode < '57' && stateCode != '00' && countyCode != '000') {
+                var name = worksheet['G' + i].v.toLowerCase()
+                var countyMap = electionData.get(stateCode)
+                let key
+    
+                if (countyMap.has(name)) {
+                    countyMap.set(stateCode + countyCode, {name: worksheet['G' + i].v, count: countyMap.get(name)})
+                    countyMap.delete(name)
+                } else if (key = Array.from(countyMap.keys()).find(x => name.startsWith(x + ' '))) {
+                    countyMap.set(stateCode + countyCode, {name: worksheet['G' + i].v, count: countyMap.get(key)})
+                    countyMap.delete(key)
+                }
+            } else if (code == stateSummaryLevel && stateCode < '57' && stateCode != '00') {
+                var name = worksheet['G' + i].v
+                var countyMap = electionData.get(stateCode)
+                countyMap.set(stateCode, {name: name, count: countyMap.get('total')})
+                countyMap.delete('total')
+            }
+        }
+    
+        return electionData
+     })
+
 }
 
-//write data to CSV
-function saveElectionDataToCSV(electionData, resultsFile) {
-    var stringifier = stringify({delimiter: ','})
+//saves election data as CSV file
+async function saveElectionDataCSV(csvFilename) {
+    let stringifier = stringify({delimiter: ','})
+
+    const results = await getElectionData();
+    return new Promise((resolve, reject) => {
+        stringifier.pipe(fs.createWriteStream(csvFilename).on('finish', () => console.log('Finished writing CSV results to %s', csvFilename)))
+            .on('error', reject)
+            .on('end', resolve)
+
+        for (let [_, countyMap] of results) {
+            for (let [code, { name, count }] of countyMap) {
+                stringifier.write([code, name, count]);
+            }
+        }
+        stringifier.end();
+    });
+}
+
+//saves election data as JSON file
+async function saveElectionDataJSON(jsonFilename) {
+    const results = await getElectionData()
 
     return new Promise((resolve, reject) => {
-        stringifier.pipe(fs.createWriteStream(resultsFile))
-            .on('error', e => reject(e))
-            .on('end', () => resolve())
+        let writeStream = fs.createWriteStream(jsonFilename)
+            .on('error', reject)
+            .on('finish', () => {
+                console.log("Finished writing JSON results to %s", jsonFilename)
+                resolve()
+            })
         
-        //header for the csv file
-        stringifier.write(['id', 'name', 'count'])
-        
-        electionData.forEach((countyMap, stateCode) => {
-            for ([code, {name, count}] of countyMap) {
-                stringifier.write([code, name, count])
+        writeStream.write('[')
+
+        let stateIndex = 0
+        for (let [stateCode, countyMap] of results) {
+
+            writeStream.write(`{"stateCode": "${stateCode}", "regions": [`)
+
+            let countyIndex = 0
+            for (let [code, {name, count}] of countyMap) {
+                writeStream.write(JSON.stringify({ countyCode: code, name, count }))
+                countyIndex++
+                if (countyIndex < countyMap.size) {
+                    writeStream.write(',')
+                }
             }
-        })
-        stringifier.end()
+
+            writeStream.write(`] }`)
+            stateIndex++
+            if (stateIndex < results.size) {
+                writeStream.write(',')
+            }
+        }
+
+        writeStream.write(']')
+        writeStream.end()
     })
+
 }
 
-
 module.exports = {
-    saveStateElectionData: saveStateElectionData
+    saveElectionDataCSV,
+    saveElectionDataJSON
 }
