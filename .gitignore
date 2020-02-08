@@ -1,6 +1,8 @@
 node_modules
-geometry
-data_scrapers/local_data/main_results.txt
-data_scrapers/local_data/election_results.csv
 .vscode
-data_scrapers/local_data/all-geocodes-v2017.xlsx
+!data_scrapers\local_data\alaska_precinct_to_county.csv
+!data_scrapers\local_data\regions.csv
+*.xlsx
+*.csv
+*.txt
+*.json
