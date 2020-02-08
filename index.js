@@ -1,4 +1,3 @@
-const fs = require('fs')
 const scraper = require('./data_scrapers/scrapers')
 
 //give hint if usage is incorrect
@@ -7,7 +6,6 @@ if (process.argv.length > 3) {
     console.log(`Usage: node ${__filename} [<output file>]`)
     process.exit()
 }
-
 
 if (process.argv.length == 3) {
     //save to indicated file

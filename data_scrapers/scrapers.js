@@ -26,17 +26,12 @@ function loadScraperSite(site) {
     })
 }
 
-function _findWikipediaTable(site, $) {
-    var siteId = '#' + site.split('#')[1].replace(/\//g, '\\/')
+function findWikipediaTable(site, $) {
+    let [_, siteId] = site.split('#')
+    siteId = '#' + siteId.replace(/\//g, '\\/')
     return $(siteId).parent()
         .nextAll('table.wikitable')
         .first()
-}
-
-
-function findWikipediaTable($, siteId) {
-    return $(`#${siteId.replace(/\//g, '\\/')}`).parent()
-        .nextAll('table.wikitable').first()
 }
 
 
@@ -79,32 +74,25 @@ function extractWikipediaSplitPercentagesTable(table, $) {
 
 }
 
+//Extract Wikipedia state election table. 
+//A example of the format can be found here: https://en.wikipedia.org/wiki/2016_United_States_presidential_election_in_Tennessee#By_county
 function defaultExtractDataSingleTable(site) {
     return loadScraperSite(site).then(function($) {
-        let [_, siteId] = site.split('#')
-        var table = findWikipediaTable($, siteId)
+        //let [_, siteId] = site.split('#')
+        var table = findWikipediaTable(site, $)
         return new Map(extractWikipediaSingleTable(table, $))
     })
 }
 
+//Extracts Wikipedia table where percentages and totals are split in one row. 
+//An example of the format can be found here: https://en.wikipedia.org/wiki/2016_United_States_presidential_election_in_Michigan#Results_by_county
 function defaultExtractDataSplitPercentagesTable(site) {
     return loadScraperSite(site).then(function($) {
         let [_, siteId] = site.split('#')
         //var siteId = site.split('#')[1]
-        var table = findWikipediaTable($, siteId)
+        var table = findWikipediaTable(site, $)
         return new Map(extractWikipediaSplitPercentagesTable(table, $))
     })
-}
-
-function extractWikipediaSite(tableFunction, extractionFunction) {
-    return function(site) {
-        loadScraperSite(site).then(function($) {
-            //var siteId = site.split('#')[1]
-            let [_, siteId] = site.split('#')
-            var table = tableFunction($, siteId)
-            return extractionFunction(table, $)
-        })
-    }
 }
 
 function addTotalAmount(results) {
@@ -161,7 +149,7 @@ function getAlaskaResults(site) {
 }
 
 //extract Alaska county results which are on a different website
-//map precinct to county since Alaska dooes not keep a county count
+//map precinct to county since Alaska does not keep a county count
 //Alaska precinct to county site: https://web.archive.org/web/20170325204053/http://www.elections.alaska.gov/Core/listofpollingplacelocations.php
 function extractAlaskaResults(electionData, electionPrecinctMap) {
     var electionDistrictResults = new Map()
@@ -184,6 +172,8 @@ function extractAlaskaResults(electionData, electionPrecinctMap) {
                 let district
 
                 if (district = precinct.match(/(?<d>\d{2}\-\d{3})/)) {
+                    //save number of votes in corresponding county
+
                     var region = district.groups.d
                     district = region.split('-')[0]
                     var county = electionPrecinctMap.get(region)
@@ -199,6 +189,8 @@ function extractAlaskaResults(electionData, electionPrecinctMap) {
                     }                    
 
                 } else if (district = precinct.match(/District (?<d>\d+) \- (Absentee|Early Voting|Question)/)) {
+                    //save number of votes in "non election day" results key
+
                     district = district.groups.d.padStart(2, '0')
                     
                     if (electionDistrictResults.has(district) && electionDistrictResults.get(district).has(nonEDKey)) {
@@ -228,6 +220,8 @@ function extractAlaskaResults(electionData, electionPrecinctMap) {
 
             var nonEDTotalCount = breakdown.get(nonEDKey)
 
+            //calculate non election day number of votes in proportion to election day percentage of total count for the county
+            //add non election day number of votes to the election count
             breakdown.forEach((count, county) => {
                 if (county != nonEDKey) {
                     var nonEDCount = Math.floor(nonEDTotalCount * (count / totalEDCount))
@@ -300,7 +294,7 @@ function getHawaiiData(site) {
 
 function getIdahoData(site) {
     return loadScraperSite(site).then(function($) {
-        var table = _findWikipediaTable(site, $)
+        var table = findWikipediaTable(site, $)
         var tableRows = getTableRows(table, $).not((i, _row) => i == 0)
         var totalCount = 0
 
@@ -339,7 +333,7 @@ var getLouisianaData = site => defaultExtractDataSingleTable(site).then(addTotal
 function getMaineData(site) {
 
     return loadScraperSite(site).then(function($) {
-        var table = _findWikipediaTable(site, $)
+        var table = findWikipediaTable(site, $)
         var tableRows = getTableRows(table, $)
         var totalCount = 0
 
@@ -356,7 +350,7 @@ function getMaineData(site) {
     })
 }
 
-//Reminder: when joining data make names lowercase
+
 function getMarylandData(site) {
     return defaultExtractDataSingleTable(site).then(function(results) {
         var totalCount = 0
@@ -409,7 +403,7 @@ var getNewHampshireData = site => defaultExtractDataSingleTable(site).then(addTo
 
 function getNewJerseyData(site) {
     return loadScraperSite(site).then(function($) {
-        var table = _findWikipediaTable(site, $)
+        var table = findWikipediaTable(site, $)
         var tableRows = getTableRows(table, $).not((i, _row) => i == 0)
         var totalCount = 0
         
@@ -435,7 +429,7 @@ var getNewMexicoData = site => defaultExtractDataSplitPercentagesTable(site)
 
 function getNewYorkData(site) {
     return loadScraperSite(site).then(function($) {
-        var table = _findWikipediaTable(site, $)
+        var table = findWikipediaTable(site, $)
         var tableRows = getTableRows(table, $).not((i, _row) => i == 0)
         var totalCount = 0
 
@@ -486,7 +480,7 @@ var getOklahomaData = site => defaultExtractDataSingleTable(site).then(replaceTo
 
 function getOregonData(site) {
     return loadScraperSite(site).then(function($) {
-        var table = _findWikipediaTable(site, $)
+        var table = findWikipediaTable(site, $)
         var tableRows = getTableRows(table, $).not((i, _row) => i == 0)
         var totalCount = 0
 
@@ -613,7 +607,7 @@ function parseStateSite(state, site) {
     return stateScrapers[state](site)
 }
 
-//
+
 function getElectionData() {
 
     return new Promise((resolve, reject) => {
