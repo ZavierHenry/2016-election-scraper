@@ -717,7 +717,7 @@ async function saveElectionDataJSON(jsonFilename) {
 
             let countyIndex = 0
             for (let [code, {name, count}] of countyMap) {
-                writeStream.write(JSON.stringify({ countyCode: code, name, count }))
+                writeStream.write(JSON.stringify({ regionCode: code, name, count }))
                 countyIndex++
                 if (countyIndex < countyMap.size) {
                     writeStream.write(',')
