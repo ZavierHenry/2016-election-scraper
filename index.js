@@ -34,5 +34,5 @@ if (process.argv.length == 3) {
 } else {
     let defaultFilename = "election_results.txt"
     scraper.saveElectionDataCSV(defaultFilename)
-        .catch(err => console.error(`An error occurred while saving election results to CSV: ${err}`))
+        .catch(err => console.error(`An error occurred while saving election results to CSV:\n\n${err}`))
 }

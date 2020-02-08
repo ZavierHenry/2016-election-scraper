@@ -5,9 +5,6 @@ const stringify = require('csv-stringify')
 const xlsx = require('xlsx');
 const fs = require('fs');
 
-const regions = `${__dirname}/local_data/regions.csv`
-
-
 //------------------------------------------------------------------------------------------
 //Utility scraper functions
 
@@ -20,9 +17,7 @@ function loadScraperSite(site) {
         }
     })
     .catch(err => {
-        throw `An error occurred when fetching a scraper site\n
-            Site: ${site}\n
-            Error: ${err}\n`
+        throw `An error occurred when fetching data from ${site}:\n\n${err}`
     })
 }
 
@@ -78,7 +73,6 @@ function extractWikipediaSplitPercentagesTable(table, $) {
 //A example of the format can be found here: https://en.wikipedia.org/wiki/2016_United_States_presidential_election_in_Tennessee#By_county
 function defaultExtractDataSingleTable(site) {
     return loadScraperSite(site).then(function($) {
-        //let [_, siteId] = site.split('#')
         var table = findWikipediaTable(site, $)
         return new Map(extractWikipediaSingleTable(table, $))
     })
@@ -89,7 +83,6 @@ function defaultExtractDataSingleTable(site) {
 function defaultExtractDataSplitPercentagesTable(site) {
     return loadScraperSite(site).then(function($) {
         let [_, siteId] = site.split('#')
-        //var siteId = site.split('#')[1]
         var table = findWikipediaTable(site, $)
         return new Map(extractWikipediaSplitPercentagesTable(table, $))
     })
@@ -546,7 +539,6 @@ function getWyomingData(site) {
     })
 }
 
-
 //-------------------------------------------------------------------------------------------
 //Object of scrapers used for each state
 const stateScrapers = {
@@ -604,14 +596,13 @@ const stateScrapers = {
 }
 
 function parseStateSite(state, site) {
-    return stateScrapers[state](site)
+    return stateScrapers[state](site).catch(err => { throw `A problem occurred when parsing scraper for ${state}:\n\n${err}\n` })
 }
-
 
 function getElectionData() {
 
     return new Promise((resolve, reject) => {
-        let regionFile = `${__dirname}/local_data/regions.csv`
+        const regionFile = `${__dirname}/local_data/regions.csv`
         let parser = parse({delimiter: ','})
         let stateScrapers = []
 
@@ -630,7 +621,6 @@ function getElectionData() {
     })
 
 }
-
 
 //replaces the county name with its FIPS code (e.g. Cook County Illinois is replaced with its code 17031)
 function replaceCountyNamesWithId(electionData) {
@@ -657,8 +647,10 @@ function replaceCountyNamesWithId(electionData) {
             var code = worksheet['A' + i].v
             var stateCode = worksheet['B' + i].v
             var countyCode = worksheet['C' + i].v
-    
+            
             if (code == countySummaryLevel && stateCode < '57' && stateCode != '00' && countyCode != '000') {
+                //replaces county name with county code
+
                 var name = worksheet['G' + i].v.toLowerCase()
                 var countyMap = electionData.get(stateCode)
                 let key
@@ -671,6 +663,8 @@ function replaceCountyNamesWithId(electionData) {
                     countyMap.delete(key)
                 }
             } else if (code == stateSummaryLevel && stateCode < '57' && stateCode != '00') {
+                //replaces "total" with state code
+
                 var name = worksheet['G' + i].v
                 var countyMap = electionData.get(stateCode)
                 countyMap.set(stateCode, {name: name, count: countyMap.get('total')})
