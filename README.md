@@ -4,11 +4,11 @@ Scrapes websites for total vote count in the 2016 general election by county. Si
 
 ## Running the scraper
 
-Run the scraper by using the following command:
+Run the scraper by running the following command in the root directory:
 
-`node d3_voter_map [<filename>]`
+`node index.js [<filename>]`
 
-By default, the scraper will save the results to ./results.csv
+`[<filename>]` is the name of the file to save the results to. The scraper accepts `.json`, `.csv`, and `.txt` files. By default, the scraper will save the results to `./election_results.txt`
 
 ## Collecting Alaska data
 
